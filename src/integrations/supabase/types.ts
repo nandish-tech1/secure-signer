@@ -14,7 +14,187 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          created_at: string
+          document_id: string | null
+          id: string
+          ip: string | null
+          metadata: Json | null
+          signer_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          ip?: string | null
+          metadata?: Json | null
+          signer_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          ip?: string | null
+          metadata?: Json | null
+          signer_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_signer_id_fkey"
+            columns: ["signer_id"]
+            isOneToOne: false
+            referencedRelation: "signers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          original_path: string
+          owner_id: string
+          page_count: number
+          signed_path: string | null
+          status: Database["public"]["Enums"]["document_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          original_path: string
+          owner_id: string
+          page_count?: number
+          signed_path?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          original_path?: string
+          owner_id?: string
+          page_count?: number
+          signed_path?: string | null
+          status?: Database["public"]["Enums"]["document_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signature_fields: {
+        Row: {
+          created_at: string
+          height_ratio: number
+          id: string
+          page: number
+          signer_id: string
+          width_ratio: number
+          x_ratio: number
+          y_ratio: number
+        }
+        Insert: {
+          created_at?: string
+          height_ratio?: number
+          id?: string
+          page?: number
+          signer_id: string
+          width_ratio?: number
+          x_ratio: number
+          y_ratio: number
+        }
+        Update: {
+          created_at?: string
+          height_ratio?: number
+          id?: string
+          page?: number
+          signer_id?: string
+          width_ratio?: number
+          x_ratio?: number
+          y_ratio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_fields_signer_id_fkey"
+            columns: ["signer_id"]
+            isOneToOne: false
+            referencedRelation: "signers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signers: {
+        Row: {
+          created_at: string
+          document_id: string
+          email: string
+          id: string
+          name: string | null
+          rejection_reason: string | null
+          signature_data: string | null
+          signature_typed: string | null
+          signed_at: string | null
+          signed_ip: string | null
+          status: Database["public"]["Enums"]["signer_status"]
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          email: string
+          id?: string
+          name?: string | null
+          rejection_reason?: string | null
+          signature_data?: string | null
+          signature_typed?: string | null
+          signed_at?: string | null
+          signed_ip?: string | null
+          status?: Database["public"]["Enums"]["signer_status"]
+          token: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          email?: string
+          id?: string
+          name?: string | null
+          rejection_reason?: string | null
+          signature_data?: string | null
+          signature_typed?: string | null
+          signed_at?: string | null
+          signed_ip?: string | null
+          status?: Database["public"]["Enums"]["signer_status"]
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signers_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +203,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      document_status: "draft" | "sent" | "completed" | "cancelled"
+      signer_status: "pending" | "signed" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +331,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      document_status: ["draft", "sent", "completed", "cancelled"],
+      signer_status: ["pending", "signed", "rejected"],
+    },
   },
 } as const
