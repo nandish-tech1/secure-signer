@@ -1,0 +1,155 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { FileSignature, Loader2 } from "lucide-react";
+
+export const Route = createFileRoute("/auth")({
+  head: () => ({
+    meta: [
+      { title: "Sign in — SignTrust" },
+      { name: "description", content: "Sign in or create a SignTrust account." },
+    ],
+  }),
+  component: AuthPage,
+});
+
+function AuthPage() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) navigate({ to: "/dashboard", replace: true });
+    });
+  }, [navigate]);
+
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Welcome back");
+    navigate({ to: "/dashboard", replace: true });
+  }
+
+  async function handleSignUp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin + "/dashboard" },
+    });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Account created — check your email to confirm.");
+  }
+
+  async function handleGoogle() {
+    setLoading(true);
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin + "/dashboard",
+    });
+    if (result.error) {
+      setLoading(false);
+      toast.error(result.error.message ?? "Google sign-in failed");
+      return;
+    }
+    if (result.redirected) return;
+    navigate({ to: "/dashboard", replace: true });
+  }
+
+  return (
+    <div className="min-h-screen grid lg:grid-cols-2">
+      <div className="hidden lg:flex flex-col justify-between p-12 text-primary-foreground" style={{ background: "var(--gradient-hero)" }}>
+        <Link to="/" className="flex items-center gap-2 font-semibold">
+          <FileSignature className="h-5 w-5" /> SignTrust
+        </Link>
+        <div>
+          <h2 className="text-3xl font-semibold tracking-tight">Sign with confidence.</h2>
+          <p className="mt-3 text-primary-foreground/80 max-w-md">
+            Every signature is timestamped, IP-logged, and bound to a tamper-evident
+            PDF — built for legal, HR, and finance workflows.
+          </p>
+        </div>
+        <span className="text-xs text-primary-foreground/60">© SignTrust</span>
+      </div>
+
+      <div className="flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome</h1>
+          <p className="text-sm text-muted-foreground mt-1">Sign in or create an account to continue.</p>
+
+          <Tabs defaultValue="signin" className="mt-8">
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="signin">Sign in</TabsTrigger>
+              <TabsTrigger value="signup">Sign up</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="signin">
+              <form onSubmit={handleSignIn} className="space-y-4 mt-6">
+                <Field label="Email" type="email" value={email} onChange={setEmail} />
+                <Field label="Password" type="password" value={password} onChange={setPassword} />
+                <Button type="submit" disabled={loading} className="w-full">
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Sign in
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="signup">
+              <form onSubmit={handleSignUp} className="space-y-4 mt-6">
+                <Field label="Email" type="email" value={email} onChange={setEmail} />
+                <Field label="Password" type="password" value={password} onChange={setPassword} />
+                <Button type="submit" disabled={loading} className="w-full">
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Create account
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">or</span>
+            </div>
+          </div>
+
+          <Button variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
+            <GoogleIcon /> Continue with Google
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, type, value, onChange }: { label: string; type: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} required minLength={type === "password" ? 6 : undefined} />
+    </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 48 48" aria-hidden>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35.5 24 35.5c-6.3 0-11.5-5.2-11.5-11.5S17.7 12.5 24 12.5c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.7 6.3 29.1 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.3-.4-3.5z"/>
+      <path fill="#FF3D00" d="M6.3 14.1l6.6 4.8C14.7 15.3 19 12.5 24 12.5c2.9 0 5.6 1.1 7.6 2.9l5.7-5.7C33.7 6.3 29.1 4.5 24 4.5 16.4 4.5 9.8 8.7 6.3 14.1z"/>
+      <path fill="#4CAF50" d="M24 43.5c5 0 9.6-1.7 13.1-4.6l-6-5.1c-2.1 1.4-4.7 2.2-7.1 2.2-5.3 0-9.7-3.1-11.3-7.5l-6.5 5C9.7 39.2 16.3 43.5 24 43.5z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.3 4.1-4.2 5.4l6 5.1c-.4.4 6.4-4.7 6.4-14.5 0-1.2-.1-2.3-.4-3.5z"/>
+    </svg>
+  );
+}
