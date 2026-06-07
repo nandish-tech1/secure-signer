@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { getDocumentSignedUrl, sendForSignature } from "@/lib/documents.functions";
@@ -42,6 +42,19 @@ function DocumentPage() {
   const [activeSignerId, setActiveSignerId] = useState<string | null>(null);
   const [newSigner, setNewSigner] = useState({ email: "", name: "" });
   const [showAddSigner, setShowAddSigner] = useState(false);
+  const [draftPos, setDraftPos] = useState<Record<string, { x: number; y: number }>>({});
+  const dragRef = useRef<{
+    fieldId: string;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    overlayW: number;
+    overlayH: number;
+    w: number;
+    h: number;
+    moved: boolean;
+  } | null>(null);
 
   const docQ = useQuery({
     queryKey: ["doc", id],
@@ -123,6 +136,61 @@ function DocumentPage() {
     qc.invalidateQueries({ queryKey: ["fields", id] });
   }
 
+  function onFieldPointerDown(
+    e: React.PointerEvent<HTMLDivElement>,
+    f: Field,
+  ) {
+    if (isCompleted) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const overlay = (e.currentTarget.parentElement as HTMLDivElement);
+    const rect = overlay.getBoundingClientRect();
+    dragRef.current = {
+      fieldId: f.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: Number(f.x_ratio),
+      startY: Number(f.y_ratio),
+      overlayW: rect.width,
+      overlayH: rect.height,
+      w: Number(f.width_ratio),
+      h: Number(f.height_ratio),
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onFieldPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = (e.clientX - d.startClientX) / d.overlayW;
+    const dy = (e.clientY - d.startClientY) / d.overlayH;
+    if (Math.abs(dx) + Math.abs(dy) > 0.002) d.moved = true;
+    const nx = Math.max(0, Math.min(1 - d.w, d.startX + dx));
+    const ny = Math.max(0, Math.min(1 - d.h, d.startY + dy));
+    setDraftPos((p) => ({ ...p, [d.fieldId]: { x: nx, y: ny } }));
+  }
+
+  async function onFieldPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    const pos = draftPos[d.fieldId];
+    if (d.moved && pos) {
+      const { error } = await supabase
+        .from("signature_fields")
+        .update({ x_ratio: pos.x, y_ratio: pos.y })
+        .eq("id", d.fieldId);
+      if (error) toast.error(error.message);
+      qc.invalidateQueries({ queryKey: ["fields", id] });
+    }
+    // suppress the synthetic click that would place a new field
+    if (d.moved) {
+      e.stopPropagation();
+    }
+  }
+
   async function sendDocument() {
     if (!signersQ.data?.length) return toast.error("Add at least one signer");
     if (!fieldsQ.data?.length) return toast.error("Place at least one signature field");
@@ -199,24 +267,33 @@ function DocumentPage() {
                       {(fieldsQ.data ?? []).filter((f) => f.page === page).map((f) => {
                         const signer = signersQ.data?.find((s) => s.id === f.signer_id);
                         const color = signerColors[f.signer_id] ?? "#3b6fa0";
+                        const pos = draftPos[f.id];
+                        const left = (pos?.x ?? Number(f.x_ratio)) * 100;
+                        const top = (pos?.y ?? Number(f.y_ratio)) * 100;
                         return (
                           <div
                             key={f.id}
-                            className="absolute rounded border-2 flex items-center justify-center text-[10px] font-medium"
+                            className={`absolute rounded border-2 flex items-center justify-center text-[10px] font-medium select-none ${isCompleted ? "" : "cursor-grab active:cursor-grabbing"}`}
                             style={{
-                              left: `${f.x_ratio * 100}%`,
-                              top: `${f.y_ratio * 100}%`,
+                              left: `${left}%`,
+                              top: `${top}%`,
                               width: `${f.width_ratio * 100}%`,
                               height: `${f.height_ratio * 100}%`,
                               borderColor: color,
                               background: `${color}20`,
                               color,
+                              touchAction: "none",
                             }}
+                            onPointerDown={(e) => onFieldPointerDown(e, f)}
+                            onPointerMove={onFieldPointerMove}
+                            onPointerUp={onFieldPointerUp}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <span className="truncate px-1">{signer?.name || signer?.email}</span>
                             {!isCompleted && (
                               <button
                                 className="absolute -top-2 -right-2 bg-card border border-border rounded-full h-4 w-4 text-[10px] leading-none"
+                                onPointerDown={(ev) => ev.stopPropagation()}
                                 onClick={(ev) => { ev.stopPropagation(); removeField(f.id); }}
                                 aria-label="Remove field"
                               >×</button>
