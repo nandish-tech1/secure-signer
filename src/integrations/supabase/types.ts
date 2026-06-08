@@ -104,30 +104,36 @@ export type Database = {
       signature_fields: {
         Row: {
           created_at: string
+          field_type: string
           height_ratio: number
           id: string
           page: number
           signer_id: string
+          value: string | null
           width_ratio: number
           x_ratio: number
           y_ratio: number
         }
         Insert: {
           created_at?: string
+          field_type?: string
           height_ratio?: number
           id?: string
           page?: number
           signer_id: string
+          value?: string | null
           width_ratio?: number
           x_ratio: number
           y_ratio: number
         }
         Update: {
           created_at?: string
+          field_type?: string
           height_ratio?: number
           id?: string
           page?: number
           signer_id?: string
+          value?: string | null
           width_ratio?: number
           x_ratio?: number
           y_ratio?: number
