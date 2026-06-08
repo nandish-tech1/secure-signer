@@ -1,4 +1,4 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /**
@@ -25,7 +25,7 @@ export async function finalizeDocumentInternal(documentId: string) {
 
   const { data: fields, error: fErr } = await supabaseAdmin
     .from("signature_fields")
-    .select("signer_id, page, x_ratio, y_ratio, width_ratio, height_ratio");
+    .select("signer_id, page, x_ratio, y_ratio, width_ratio, height_ratio, field_type, value");
   if (fErr) throw new Error(fErr.message);
 
   // Download original
@@ -37,25 +37,43 @@ export async function finalizeDocumentInternal(documentId: string) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const pdf = await PDFDocument.load(bytes);
   const pages = pdf.getPages();
+  const helv = await pdf.embedFont(StandardFonts.Helvetica);
 
   const signerMap = new Map(signers.map((s) => [s.id, s]));
   for (const f of fields ?? []) {
     const signer = signerMap.get(f.signer_id);
-    if (!signer || !signer.signature_data) continue;
+    if (!signer) continue;
     const pageIdx = Math.max(0, Math.min(pages.length - 1, (f.page ?? 1) - 1));
     const page = pages[pageIdx];
     const { width: pw, height: ph } = page.getSize();
     const w = Number(f.width_ratio) * pw;
     const h = Number(f.height_ratio) * ph;
-    // y_ratio is from top in our UI; PDF origin is bottom-left
     const x = Number(f.x_ratio) * pw;
     const y = ph - Number(f.y_ratio) * ph - h;
+    const ftype = (f as any).field_type ?? "signature";
 
     try {
-      const b64 = signer.signature_data.split(",")[1] ?? signer.signature_data;
-      const imgBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      const img = await pdf.embedPng(imgBytes);
-      page.drawImage(img, { x, y, width: w, height: h });
+      if (ftype === "signature" || ftype === "initials") {
+        if (!signer.signature_data) continue;
+        const b64 = signer.signature_data.split(",")[1] ?? signer.signature_data;
+        const imgBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const img = await pdf.embedPng(imgBytes);
+        page.drawImage(img, { x, y, width: w, height: h });
+      } else {
+        const text =
+          ftype === "name" ? (f.value || signer.name || signer.email || "") :
+          ftype === "date" ? (f.value || new Date().toLocaleDateString()) :
+          (f.value || "");
+        if (!text) continue;
+        const fontSize = Math.max(8, Math.min(h * 0.7, 18));
+        page.drawText(text, {
+          x: x + 2,
+          y: y + (h - fontSize) / 2,
+          size: fontSize,
+          font: helv,
+          color: rgb(0.06, 0.11, 0.24),
+        });
+      }
     } catch (e) {
       console.error("embed failed", e);
     }

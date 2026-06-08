@@ -6,10 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Upload, FileText, Loader2, Filter } from "lucide-react";
+import { Upload, FileText, Loader2, User, Users } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -26,8 +28,10 @@ type Doc = {
 function Dashboard() {
   const { user } = Route.useRouteContext();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [filter, setFilter] = useState<"all" | "draft" | "sent" | "completed">("all");
+  const [chooserDocId, setChooserDocId] = useState<string | null>(null);
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["documents", filter],
@@ -80,11 +84,38 @@ function Dashboard() {
 
       toast.success("Document uploaded");
       qc.invalidateQueries({ queryKey: ["documents"] });
+      setChooserDocId(id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
+  }
+
+  async function chooseOnlyMe() {
+    if (!chooserDocId) return;
+    const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+    // Create the signer as the current user (idempotent: only if none exists)
+    const { data: existing } = await supabase.from("signers").select("id").eq("document_id", chooserDocId).limit(1);
+    if (!existing?.length) {
+      const { error } = await supabase.from("signers").insert({
+        document_id: chooserDocId,
+        email: user.email ?? "self@local",
+        name: (user.user_metadata?.full_name as string | undefined) ?? user.email ?? "Me",
+        token,
+      });
+      if (error) return toast.error(error.message);
+    }
+    const id = chooserDocId;
+    setChooserDocId(null);
+    navigate({ to: "/documents/$id/self-sign", params: { id } });
+  }
+
+  function chooseSeveralPeople() {
+    if (!chooserDocId) return;
+    const id = chooserDocId;
+    setChooserDocId(null);
+    navigate({ to: "/documents/$id", params: { id } });
   }
 
   return (
@@ -142,6 +173,39 @@ function Dashboard() {
           ))}
         </div>
       </main>
+
+      <Dialog open={!!chooserDocId} onOpenChange={(o) => !o && setChooserDocId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Who will sign this document?</DialogTitle>
+            <DialogDescription>Choose how you want to proceed.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              type="button"
+              onClick={chooseOnlyMe}
+              className="rounded-lg border border-border bg-card hover:border-accent hover:bg-accent/5 transition p-5 text-left flex flex-col items-center gap-2"
+            >
+              <div className="h-12 w-12 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+                <User className="h-6 w-6" />
+              </div>
+              <div className="font-medium">Only me</div>
+              <div className="text-xs text-muted-foreground text-center">Sign this document yourself</div>
+            </button>
+            <button
+              type="button"
+              onClick={chooseSeveralPeople}
+              className="rounded-lg border border-border bg-card hover:border-accent hover:bg-accent/5 transition p-5 text-left flex flex-col items-center gap-2"
+            >
+              <div className="h-12 w-12 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+                <Users className="h-6 w-6" />
+              </div>
+              <div className="font-medium">Several people</div>
+              <div className="text-xs text-muted-foreground text-center">Invite others to sign</div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
