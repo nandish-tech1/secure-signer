@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { ArrowLeft, Pen, Type, User, Calendar as CalendarIcon, FileText, Trash2, CheckCircle2, GripVertical } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/documents/$id/self-sign")({
+export const Route = createFileRoute("/_authenticated/documents/$id_/self-sign")({
   component: SelfSignPage,
 });
 

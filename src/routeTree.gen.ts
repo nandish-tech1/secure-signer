@@ -15,7 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignTokenRouteImport } from './routes/sign.$token'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDocumentsIdRouteImport } from './routes/_authenticated/documents.$id'
-import { Route as AuthenticatedDocumentsIdSelfSignRouteImport } from './routes/_authenticated/documents.$id.self-sign'
+import { Route as AuthenticatedDocumentsIdSelfSignRouteImport } from './routes/_authenticated/documents.$id_.self-sign'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -49,9 +49,9 @@ const AuthenticatedDocumentsIdRoute =
   } as any)
 const AuthenticatedDocumentsIdSelfSignRoute =
   AuthenticatedDocumentsIdSelfSignRouteImport.update({
-    id: '/self-sign',
-    path: '/self-sign',
-    getParentRoute: () => AuthenticatedDocumentsIdRoute,
+    id: '/documents/$id_/self-sign',
+    path: '/documents/$id/self-sign',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -59,7 +59,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/sign/$token': typeof SignTokenRoute
-  '/documents/$id': typeof AuthenticatedDocumentsIdRouteWithChildren
+  '/documents/$id': typeof AuthenticatedDocumentsIdRoute
   '/documents/$id/self-sign': typeof AuthenticatedDocumentsIdSelfSignRoute
 }
 export interface FileRoutesByTo {
@@ -67,7 +67,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/sign/$token': typeof SignTokenRoute
-  '/documents/$id': typeof AuthenticatedDocumentsIdRouteWithChildren
+  '/documents/$id': typeof AuthenticatedDocumentsIdRoute
   '/documents/$id/self-sign': typeof AuthenticatedDocumentsIdSelfSignRoute
 }
 export interface FileRoutesById {
@@ -77,8 +77,8 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/sign/$token': typeof SignTokenRoute
-  '/_authenticated/documents/$id': typeof AuthenticatedDocumentsIdRouteWithChildren
-  '/_authenticated/documents/$id/self-sign': typeof AuthenticatedDocumentsIdSelfSignRoute
+  '/_authenticated/documents/$id': typeof AuthenticatedDocumentsIdRoute
+  '/_authenticated/documents/$id_/self-sign': typeof AuthenticatedDocumentsIdSelfSignRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -105,7 +105,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/sign/$token'
     | '/_authenticated/documents/$id'
-    | '/_authenticated/documents/$id/self-sign'
+    | '/_authenticated/documents/$id_/self-sign'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -159,39 +159,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDocumentsIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/documents/$id/self-sign': {
-      id: '/_authenticated/documents/$id/self-sign'
-      path: '/self-sign'
+    '/_authenticated/documents/$id_/self-sign': {
+      id: '/_authenticated/documents/$id_/self-sign'
+      path: '/documents/$id/self-sign'
       fullPath: '/documents/$id/self-sign'
       preLoaderRoute: typeof AuthenticatedDocumentsIdSelfSignRouteImport
-      parentRoute: typeof AuthenticatedDocumentsIdRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
-interface AuthenticatedDocumentsIdRouteChildren {
-  AuthenticatedDocumentsIdSelfSignRoute: typeof AuthenticatedDocumentsIdSelfSignRoute
-}
-
-const AuthenticatedDocumentsIdRouteChildren: AuthenticatedDocumentsIdRouteChildren =
-  {
-    AuthenticatedDocumentsIdSelfSignRoute:
-      AuthenticatedDocumentsIdSelfSignRoute,
-  }
-
-const AuthenticatedDocumentsIdRouteWithChildren =
-  AuthenticatedDocumentsIdRoute._addFileChildren(
-    AuthenticatedDocumentsIdRouteChildren,
-  )
-
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedDocumentsIdRoute: typeof AuthenticatedDocumentsIdRouteWithChildren
+  AuthenticatedDocumentsIdRoute: typeof AuthenticatedDocumentsIdRoute
+  AuthenticatedDocumentsIdSelfSignRoute: typeof AuthenticatedDocumentsIdSelfSignRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedDocumentsIdRoute: AuthenticatedDocumentsIdRouteWithChildren,
+  AuthenticatedDocumentsIdRoute: AuthenticatedDocumentsIdRoute,
+  AuthenticatedDocumentsIdSelfSignRoute: AuthenticatedDocumentsIdSelfSignRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -206,3 +193,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
