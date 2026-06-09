@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { AppHeader } from "@/components/AppHeader";
 import { PdfViewer } from "@/components/PdfViewer";
 import { SignaturePad } from "@/components/SignaturePad";
+import { SignatureDetailsDialog, type SignatureDetails } from "@/components/SignatureDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ArrowLeft, Pen, Type, User, Calendar as CalendarIcon, FileText, Trash2, CheckCircle2, GripVertical } from "lucide-react";
@@ -52,7 +53,9 @@ function SelfSignPage() {
   const [fullName, setFullName] = useState(defaultName);
   const [initials, setInitials] = useState(makeInitials(defaultName));
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [initialsDataUrl, setInitialsDataUrl] = useState<string | null>(null);
   const [showPad, setShowPad] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [draftPos, setDraftPos] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -104,7 +107,7 @@ function SelfSignPage() {
     const w = def.w, h = def.h;
     const value =
       type === "name" ? fullName :
-      type === "initials" ? initials :
+      type === "initials" ? (initialsDataUrl ?? initials) :
       type === "date" ? new Date().toLocaleDateString() :
       type === "text" ? "" : null;
     const { error } = await supabase.from("signature_fields").insert({
