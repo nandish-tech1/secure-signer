@@ -271,10 +271,10 @@ function SelfSignPage() {
                         const left = (pos?.x ?? Number(f.x_ratio)) * 100;
                         const top = (pos?.y ?? Number(f.y_ratio)) * 100;
                         const isSig = f.field_type === "signature";
-                        const showText = !isSig;
+                        const isInit = f.field_type === "initials";
+                        const initImg = isInit && f.value && typeof f.value === "string" && f.value.startsWith("data:") ? f.value : null;
                         const display =
-                          f.field_type === "signature" ? null :
-                          f.field_type === "initials" ? initials :
+                          isSig || isInit ? null :
                           f.field_type === "name" ? fullName :
                           f.field_type === "date" ? (f.value || new Date().toLocaleDateString()) :
                           (f.value || "Text");
@@ -297,6 +297,10 @@ function SelfSignPage() {
                               <img src={signatureDataUrl} alt="sig" className="max-h-full max-w-full object-contain pointer-events-none" />
                             ) : isSig ? (
                               <span className="opacity-70">Signature</span>
+                            ) : isInit && (initImg || initialsDataUrl) ? (
+                              <img src={(initImg || initialsDataUrl) as string} alt="initials" className="max-h-full max-w-full object-contain pointer-events-none" />
+                            ) : isInit ? (
+                              <span className="truncate px-1 text-foreground">{initials}</span>
                             ) : (
                               <span className="truncate px-1 text-foreground">{display}</span>
                             )}
