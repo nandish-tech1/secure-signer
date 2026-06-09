@@ -336,6 +336,9 @@ function SelfSignPage() {
                 <Button type="button" variant="outline" className="w-full" onClick={() => setShowPad(true)}>
                   <Pen className="h-4 w-4" />{signatureDataUrl ? "Change signature" : "Create signature"}
                 </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setShowDetails(true)}>
+                  Edit signature details
+                </Button>
                 {signatureDataUrl && (
                   <div className="rounded-md border border-border bg-card p-2">
                     <img src={signatureDataUrl} alt="Your signature" className="h-12 mx-auto" />
