@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { AppHeader } from "@/components/AppHeader";
 import { PdfViewer } from "@/components/PdfViewer";
 import { SignaturePad } from "@/components/SignaturePad";
+import { SignatureDetailsDialog, type SignatureDetails } from "@/components/SignatureDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ArrowLeft, Pen, Type, User, Calendar as CalendarIcon, FileText, Trash2, CheckCircle2, GripVertical } from "lucide-react";
@@ -52,7 +53,9 @@ function SelfSignPage() {
   const [fullName, setFullName] = useState(defaultName);
   const [initials, setInitials] = useState(makeInitials(defaultName));
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [initialsDataUrl, setInitialsDataUrl] = useState<string | null>(null);
   const [showPad, setShowPad] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [draftPos, setDraftPos] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -104,7 +107,7 @@ function SelfSignPage() {
     const w = def.w, h = def.h;
     const value =
       type === "name" ? fullName :
-      type === "initials" ? initials :
+      type === "initials" ? (initialsDataUrl ?? initials) :
       type === "date" ? new Date().toLocaleDateString() :
       type === "text" ? "" : null;
     const { error } = await supabase.from("signature_fields").insert({
@@ -195,8 +198,8 @@ function SelfSignPage() {
       for (const f of fields) {
         if (f.field_type === "name" && (f.value ?? "") !== fullName) {
           await supabase.from("signature_fields").update({ value: fullName }).eq("id", f.id);
-        } else if (f.field_type === "initials" && (f.value ?? "") !== initials) {
-          await supabase.from("signature_fields").update({ value: initials }).eq("id", f.id);
+        } else if (f.field_type === "initials" && initialsDataUrl && (f.value ?? "") !== initialsDataUrl) {
+          await supabase.from("signature_fields").update({ value: initialsDataUrl }).eq("id", f.id);
         }
       }
       const { error: sErr } = await supabase
@@ -268,10 +271,10 @@ function SelfSignPage() {
                         const left = (pos?.x ?? Number(f.x_ratio)) * 100;
                         const top = (pos?.y ?? Number(f.y_ratio)) * 100;
                         const isSig = f.field_type === "signature";
-                        const showText = !isSig;
+                        const isInit = f.field_type === "initials";
+                        const initImg = isInit && f.value && typeof f.value === "string" && f.value.startsWith("data:") ? f.value : null;
                         const display =
-                          f.field_type === "signature" ? null :
-                          f.field_type === "initials" ? initials :
+                          isSig || isInit ? null :
                           f.field_type === "name" ? fullName :
                           f.field_type === "date" ? (f.value || new Date().toLocaleDateString()) :
                           (f.value || "Text");
@@ -294,6 +297,10 @@ function SelfSignPage() {
                               <img src={signatureDataUrl} alt="sig" className="max-h-full max-w-full object-contain pointer-events-none" />
                             ) : isSig ? (
                               <span className="opacity-70">Signature</span>
+                            ) : isInit && (initImg || initialsDataUrl) ? (
+                              <img src={(initImg || initialsDataUrl) as string} alt="initials" className="max-h-full max-w-full object-contain pointer-events-none" />
+                            ) : isInit ? (
+                              <span className="truncate px-1 text-foreground">{initials}</span>
                             ) : (
                               <span className="truncate px-1 text-foreground">{display}</span>
                             )}
@@ -332,6 +339,9 @@ function SelfSignPage() {
                 </div>
                 <Button type="button" variant="outline" className="w-full" onClick={() => setShowPad(true)}>
                   <Pen className="h-4 w-4" />{signatureDataUrl ? "Change signature" : "Create signature"}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setShowDetails(true)}>
+                  Edit signature details
                 </Button>
                 {signatureDataUrl && (
                   <div className="rounded-md border border-border bg-card p-2">
@@ -396,6 +406,18 @@ function SelfSignPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <SignatureDetailsDialog
+        open={showDetails}
+        onOpenChange={setShowDetails}
+        defaultName={fullName || defaultName}
+        onApply={(d: SignatureDetails) => {
+          setFullName(d.fullName);
+          setInitials(d.initials);
+          setSignatureDataUrl(d.signatureDataUrl);
+          setInitialsDataUrl(d.initialsDataUrl);
+        }}
+      />
     </div>
   );
 }

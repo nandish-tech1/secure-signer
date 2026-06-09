@@ -54,8 +54,14 @@ export async function finalizeDocumentInternal(documentId: string) {
 
     try {
       if (ftype === "signature" || ftype === "initials") {
-        if (!signer.signature_data) continue;
-        const b64 = signer.signature_data.split(",")[1] ?? signer.signature_data;
+        // Prefer per-field image (e.g. typed initials image) when present
+        const fieldVal = (f as any).value as string | null;
+        const src =
+          ftype === "initials" && fieldVal && typeof fieldVal === "string" && fieldVal.startsWith("data:")
+            ? fieldVal
+            : signer.signature_data;
+        if (!src) continue;
+        const b64 = src.split(",")[1] ?? src;
         const imgBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         const img = await pdf.embedPng(imgBytes);
         page.drawImage(img, { x, y, width: w, height: h });
