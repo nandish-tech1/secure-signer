@@ -406,6 +406,18 @@ function SelfSignPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <SignatureDetailsDialog
+        open={showDetails}
+        onOpenChange={setShowDetails}
+        defaultName={fullName || defaultName}
+        onApply={(d: SignatureDetails) => {
+          setFullName(d.fullName);
+          setInitials(d.initials);
+          setSignatureDataUrl(d.signatureDataUrl);
+          setInitialsDataUrl(d.initialsDataUrl);
+        }}
+      />
     </div>
   );
 }
