@@ -198,8 +198,8 @@ function SelfSignPage() {
       for (const f of fields) {
         if (f.field_type === "name" && (f.value ?? "") !== fullName) {
           await supabase.from("signature_fields").update({ value: fullName }).eq("id", f.id);
-        } else if (f.field_type === "initials" && (f.value ?? "") !== initials) {
-          await supabase.from("signature_fields").update({ value: initials }).eq("id", f.id);
+        } else if (f.field_type === "initials" && initialsDataUrl && (f.value ?? "") !== initialsDataUrl) {
+          await supabase.from("signature_fields").update({ value: initialsDataUrl }).eq("id", f.id);
         }
       }
       const { error: sErr } = await supabase
