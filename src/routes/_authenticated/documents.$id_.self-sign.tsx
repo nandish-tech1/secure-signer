@@ -246,12 +246,13 @@ function SelfSignPage() {
           </Button>
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-6">
-          <div className="bg-secondary rounded-lg p-6 overflow-auto">
+        <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-6 lg:items-start">
+          <div className="bg-secondary rounded-lg p-4 overflow-auto max-h-[calc(100vh-180px)]">
             {docQ.data?.url ? (
               <div className="flex justify-center">
                 <PdfViewer
                   fileUrl={docQ.data.url}
+                  pageWidth={560}
                   renderOverlay={(page, _dim) => (
                     <div
                       className="absolute inset-0"
