@@ -68,35 +68,68 @@ export type Database = {
       documents: {
         Row: {
           created_at: string
+          current_signer_id: string | null
           id: string
           name: string
           original_path: string
           owner_id: string
           page_count: number
           signed_path: string | null
+          signing_mode: Database["public"]["Enums"]["signing_mode"]
           status: Database["public"]["Enums"]["document_status"]
           updated_at: string
         }
         Insert: {
           created_at?: string
+          current_signer_id?: string | null
           id?: string
           name: string
           original_path: string
           owner_id: string
           page_count?: number
           signed_path?: string | null
+          signing_mode?: Database["public"]["Enums"]["signing_mode"]
           status?: Database["public"]["Enums"]["document_status"]
           updated_at?: string
         }
         Update: {
           created_at?: string
+          current_signer_id?: string | null
           id?: string
           name?: string
           original_path?: string
           owner_id?: string
           page_count?: number
           signed_path?: string | null
+          signing_mode?: Database["public"]["Enums"]["signing_mode"]
           status?: Database["public"]["Enums"]["document_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          saved_initials_data: string | null
+          saved_signature_data: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+          saved_initials_data?: string | null
+          saved_signature_data?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          saved_initials_data?: string | null
+          saved_signature_data?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -108,6 +141,7 @@ export type Database = {
           height_ratio: number
           id: string
           page: number
+          required: boolean
           signer_id: string
           value: string | null
           width_ratio: number
@@ -120,6 +154,7 @@ export type Database = {
           height_ratio?: number
           id?: string
           page?: number
+          required?: boolean
           signer_id: string
           value?: string | null
           width_ratio?: number
@@ -132,6 +167,7 @@ export type Database = {
           height_ratio?: number
           id?: string
           page?: number
+          required?: boolean
           signer_id?: string
           value?: string | null
           width_ratio?: number
@@ -150,11 +186,14 @@ export type Database = {
       }
       signers: {
         Row: {
+          color: string | null
           created_at: string
           document_id: string
           email: string
           id: string
           name: string | null
+          notified_at: string | null
+          order_index: number
           rejection_reason: string | null
           signature_data: string | null
           signature_typed: string | null
@@ -164,11 +203,14 @@ export type Database = {
           token: string
         }
         Insert: {
+          color?: string | null
           created_at?: string
           document_id: string
           email: string
           id?: string
           name?: string | null
+          notified_at?: string | null
+          order_index?: number
           rejection_reason?: string | null
           signature_data?: string | null
           signature_typed?: string | null
@@ -178,11 +220,14 @@ export type Database = {
           token: string
         }
         Update: {
+          color?: string | null
           created_at?: string
           document_id?: string
           email?: string
           id?: string
           name?: string | null
+          notified_at?: string | null
+          order_index?: number
           rejection_reason?: string | null
           signature_data?: string | null
           signature_typed?: string | null
@@ -211,6 +256,7 @@ export type Database = {
     Enums: {
       document_status: "draft" | "sent" | "completed" | "cancelled"
       signer_status: "pending" | "signed" | "rejected"
+      signing_mode: "self" | "parallel" | "ordered"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -340,6 +386,7 @@ export const Constants = {
     Enums: {
       document_status: ["draft", "sent", "completed", "cancelled"],
       signer_status: ["pending", "signed", "rejected"],
+      signing_mode: ["self", "parallel", "ordered"],
     },
   },
 } as const
