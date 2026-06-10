@@ -86,10 +86,14 @@ export async function finalizeDocumentInternal(documentId: string) {
   }
 
   const out = await pdf.save();
+  // Append audit certificate page
+  const certBytes = await buildCertificatePage(pdf, doc, signers);
+  const finalBytes = certBytes ?? out;
+
   const signedPath = `${doc.owner_id}/signed/${documentId}.pdf`;
   const { error: upErr } = await supabaseAdmin.storage
     .from("documents")
-    .upload(signedPath, out, { contentType: "application/pdf", upsert: true });
+    .upload(signedPath, finalBytes, { contentType: "application/pdf", upsert: true });
   if (upErr) throw new Error(upErr.message);
 
   await supabaseAdmin
@@ -104,4 +108,86 @@ export async function finalizeDocumentInternal(documentId: string) {
   });
 
   return { completed: true, signedPath };
+}
+
+async function buildCertificatePage(
+  pdf: PDFDocument,
+  doc: { id: string; name: string; owner_id: string },
+  signers: Array<{
+    id: string;
+    name: string | null;
+    email: string;
+    status: string;
+    signed_at?: string | null;
+    signature_data: string | null;
+  }>,
+): Promise<Uint8Array | null> {
+  try {
+    const helv = await pdf.embedFont(StandardFonts.Helvetica);
+    const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const page = pdf.addPage([595.28, 841.89]); // A4
+    const { width, height } = page.getSize();
+    const margin = 48;
+    let y = height - margin;
+
+    page.drawText("Signature Certificate", {
+      x: margin, y, size: 22, font: helvBold, color: rgb(0.06, 0.11, 0.24),
+    });
+    y -= 28;
+    page.drawText(`Document: ${doc.name}`, { x: margin, y, size: 11, font: helv });
+    y -= 14;
+    page.drawText(`Document ID: ${doc.id}`, { x: margin, y, size: 9, font: helv, color: rgb(0.4, 0.4, 0.4) });
+    y -= 14;
+    page.drawText(`Completed: ${new Date().toUTCString()}`, { x: margin, y, size: 9, font: helv, color: rgb(0.4, 0.4, 0.4) });
+
+    y -= 30;
+    page.drawText("Signers", { x: margin, y, size: 14, font: helvBold });
+    y -= 8;
+    page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) });
+    y -= 18;
+
+    for (const s of signers) {
+      if (y < 120) break;
+      const name = s.name || s.email;
+      page.drawText(name, { x: margin, y, size: 12, font: helvBold });
+      y -= 13;
+      page.drawText(s.email, { x: margin, y, size: 10, font: helv, color: rgb(0.35, 0.35, 0.35) });
+      y -= 12;
+      const ts = s.signed_at ? new Date(s.signed_at).toUTCString() : "Not signed";
+      page.drawText(`Signed at: ${ts}`, { x: margin, y, size: 9, font: helv, color: rgb(0.45, 0.45, 0.45) });
+      y -= 12;
+      page.drawText(`Status: ${s.status}`, { x: margin, y, size: 9, font: helv, color: rgb(0.45, 0.45, 0.45) });
+      y -= 8;
+
+      if (s.signature_data && s.signature_data.startsWith("data:image/")) {
+        try {
+          const b64 = s.signature_data.split(",")[1] ?? "";
+          const imgBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+          const img = s.signature_data.includes("image/jpeg")
+            ? await pdf.embedJpg(imgBytes)
+            : await pdf.embedPng(imgBytes);
+          const sigW = 140;
+          const sigH = (img.height / img.width) * sigW;
+          if (y - sigH < 100) { y -= 4; }
+          else {
+            page.drawImage(img, { x: margin, y: y - sigH, width: sigW, height: sigH });
+            y -= sigH + 6;
+          }
+        } catch {}
+      }
+
+      y -= 12;
+      page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 0.3, color: rgb(0.85, 0.85, 0.85) });
+      y -= 14;
+    }
+
+    page.drawText("This certificate is auto-generated as a record of the e-signature workflow.", {
+      x: margin, y: 48, size: 8, font: helv, color: rgb(0.5, 0.5, 0.5),
+    });
+
+    return await pdf.save();
+  } catch (e) {
+    console.error("certificate build failed", e);
+    return null;
+  }
 }
