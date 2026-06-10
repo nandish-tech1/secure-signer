@@ -14,7 +14,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { SignatureDetailsDialog, type SignatureDetails } from "@/components/SignatureDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Pen, Type, User, Calendar as CalendarIcon, FileText, Trash2, CheckCircle2, GripVertical } from "lucide-react";
+import { ArrowLeft, Pen, Type, User, Calendar as CalendarIcon, Trash2, CheckCircle2, GripVertical } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/documents/$id_/self-sign")({
   component: SelfSignPage,
@@ -72,10 +72,48 @@ function SelfSignPage() {
     moved: boolean;
   } | null>(null);
 
+  const resizeRef = useRef<{
+    fieldId: string;
+    startClientX: number;
+    startClientY: number;
+    startW: number;
+    startH: number;
+    overlayW: number;
+    overlayH: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [draftSize, setDraftSize] = useState<Record<string, { w: number; h: number }>>({});
+
   const docQ = useQuery({
     queryKey: ["doc", id],
     queryFn: async () => getUrl({ data: { documentId: id, useSigned: true } }),
   });
+
+  const profileQ = useQuery({
+    queryKey: ["profile", user.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+      return data;
+    },
+  });
+
+  // Load saved signature from profile on first load
+  useEffect(() => {
+    if (profileQ.data?.saved_signature_data && !signatureDataUrl) {
+      setSignatureDataUrl(profileQ.data.saved_signature_data);
+    }
+    if (profileQ.data?.saved_initials_data && !initialsDataUrl) {
+      setInitialsDataUrl(profileQ.data.saved_initials_data);
+    }
+    if (profileQ.data?.full_name && fullName === defaultName) {
+      setFullName(profileQ.data.full_name);
+      setInitials(makeInitials(profileQ.data.full_name));
+    }
+    // If we have a saved signature, no need to force-open the details dialog
+    if (profileQ.data?.saved_signature_data) setShowDetails(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileQ.data]);
 
   const signerQ = useQuery({
     queryKey: ["self-signer", id],
@@ -183,6 +221,50 @@ function SelfSignPage() {
     if (d.moved) e.stopPropagation();
   }
 
+  function onResizeDown(e: React.PointerEvent<HTMLDivElement>, f: Field) {
+    if (isCompleted) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const fieldEl = e.currentTarget.parentElement as HTMLDivElement;
+    const overlay = fieldEl.parentElement as HTMLDivElement;
+    const rect = overlay.getBoundingClientRect();
+    resizeRef.current = {
+      fieldId: f.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startW: Number(f.width_ratio),
+      startH: Number(f.height_ratio),
+      overlayW: rect.width,
+      overlayH: rect.height,
+      x: Number(f.x_ratio),
+      y: Number(f.y_ratio),
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onResizeMove(e: React.PointerEvent<HTMLDivElement>) {
+    const r = resizeRef.current;
+    if (!r) return;
+    const dw = (e.clientX - r.startClientX) / r.overlayW;
+    const dh = (e.clientY - r.startClientY) / r.overlayH;
+    const nw = Math.max(0.04, Math.min(1 - r.x, r.startW + dw));
+    const nh = Math.max(0.025, Math.min(1 - r.y, r.startH + dh));
+    setDraftSize((p) => ({ ...p, [r.fieldId]: { w: nw, h: nh } }));
+  }
+  async function onResizeUp(e: React.PointerEvent<HTMLDivElement>) {
+    const r = resizeRef.current;
+    if (!r) return;
+    resizeRef.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    const size = draftSize[r.fieldId];
+    if (size) {
+      await supabase
+        .from("signature_fields")
+        .update({ width_ratio: size.w, height_ratio: size.h })
+        .eq("id", r.fieldId);
+      qc.invalidateQueries({ queryKey: ["fields", id] });
+    }
+  }
+
   async function handleSign() {
     if (!signerQ.data?.id) return;
     const fields = fieldsQ.data ?? [];
@@ -212,6 +294,13 @@ function SelfSignPage() {
         })
         .eq("id", signerQ.data.id);
       if (sErr) throw sErr;
+      // Persist a default profile so we can prefill next document
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        full_name: fullName,
+        saved_signature_data: signatureDataUrl,
+        saved_initials_data: initialsDataUrl,
+      });
       await supabase.from("audit_logs").insert({
         document_id: id,
         actor_email: user.email ?? null,
@@ -247,12 +336,13 @@ function SelfSignPage() {
         </div>
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6 mt-6 lg:items-start">
-          <div className="bg-secondary rounded-lg p-4 overflow-auto max-h-[calc(100vh-180px)]">
+          <div className="bg-secondary rounded-lg overflow-hidden">
             {docQ.data?.url ? (
-              <div className="flex justify-center">
+              <div>
                 <PdfViewer
                   fileUrl={docQ.data.url}
-                  pageWidth={560}
+                  showThumbnails
+                  showControls
                   renderOverlay={(page, _dim) => (
                     <div
                       className="absolute inset-0"
@@ -269,8 +359,11 @@ function SelfSignPage() {
                     >
                       {(fieldsQ.data ?? []).filter((f) => f.page === page).map((f) => {
                         const pos = draftPos[f.id];
+                        const size = draftSize[f.id];
                         const left = (pos?.x ?? Number(f.x_ratio)) * 100;
                         const top = (pos?.y ?? Number(f.y_ratio)) * 100;
+                        const widthPct = (size?.w ?? Number(f.width_ratio)) * 100;
+                        const heightPct = (size?.h ?? Number(f.height_ratio)) * 100;
                         const isSig = f.field_type === "signature";
                         const isInit = f.field_type === "initials";
                         const initImg = isInit && f.value && typeof f.value === "string" && f.value.startsWith("data:") ? f.value : null;
@@ -286,8 +379,8 @@ function SelfSignPage() {
                             style={{
                               left: `${left}%`,
                               top: `${top}%`,
-                              width: `${Number(f.width_ratio) * 100}%`,
-                              height: `${Number(f.height_ratio) * 100}%`,
+                              width: `${widthPct}%`,
+                              height: `${heightPct}%`,
                               touchAction: "none",
                             }}
                             onPointerDown={(e) => onFieldPointerDown(e, f)}
@@ -306,13 +399,22 @@ function SelfSignPage() {
                               <span className="truncate px-1 text-foreground">{display}</span>
                             )}
                             {!isCompleted && (
-                              <button
-                                type="button"
-                                className="absolute -top-2 -right-2 bg-card border border-border rounded-full h-4 w-4 text-[10px] leading-none"
-                                onPointerDown={(ev) => ev.stopPropagation()}
-                                onClick={(ev) => { ev.stopPropagation(); removeField(f.id); }}
-                                aria-label="Remove"
-                              >×</button>
+                              <>
+                                <button
+                                  type="button"
+                                  className="absolute -top-2 -right-2 bg-card border border-border rounded-full h-4 w-4 text-[10px] leading-none"
+                                  onPointerDown={(ev) => ev.stopPropagation()}
+                                  onClick={(ev) => { ev.stopPropagation(); removeField(f.id); }}
+                                  aria-label="Remove"
+                                >×</button>
+                                <div
+                                  className="absolute -bottom-1 -right-1 h-3 w-3 bg-accent border border-card rounded-sm cursor-se-resize"
+                                  onPointerDown={(ev) => onResizeDown(ev, f)}
+                                  onPointerMove={onResizeMove}
+                                  onPointerUp={onResizeUp}
+                                  aria-label="Resize"
+                                />
+                              </>
                             )}
                           </div>
                         );
@@ -412,11 +514,20 @@ function SelfSignPage() {
         open={showDetails}
         onOpenChange={setShowDetails}
         defaultName={fullName || defaultName}
-        onApply={(d: SignatureDetails) => {
+        onApply={async (d: SignatureDetails) => {
           setFullName(d.fullName);
           setInitials(d.initials);
           setSignatureDataUrl(d.signatureDataUrl);
           setInitialsDataUrl(d.initialsDataUrl);
+          if (d.saveToProfile) {
+            await supabase.from("profiles").upsert({
+              id: user.id,
+              full_name: d.fullName,
+              saved_signature_data: d.signatureDataUrl,
+              saved_initials_data: d.initialsDataUrl,
+            });
+            qc.invalidateQueries({ queryKey: ["profile", user.id] });
+          }
         }}
       />
     </div>
