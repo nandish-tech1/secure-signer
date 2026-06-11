@@ -57,63 +57,6 @@ export function PdfViewer({
     }
   }
 
-  const docContent = (
-    <Document
-      file={fileUrl}
-      onLoadSuccess={({ numPages }) => {
-        setNumPages(numPages);
-        onLoaded?.(numPages);
-      }}
-      onLoadError={(err) => console.error("PDF load error", err)}
-      loading={<div className="text-sm text-muted-foreground py-6">Loading document…</div>}
-    >
-      <div className="space-y-6 flex flex-col items-center">
-        {Array.from({ length: numPages }, (_, i) => i + 1).map((p) => (
-          <div
-            key={p}
-            ref={(el) => { pageRefs.current[p] = el; }}
-            className="relative inline-block bg-card shadow-elegant rounded-md overflow-hidden border border-border"
-            style={{ boxShadow: "var(--shadow-elegant)" }}
-          >
-            <Page
-              pageNumber={p}
-              width={effectiveWidth}
-              onLoadSuccess={(page) =>
-                setDims((d) => ({ ...d, [p]: { width: page.width, height: page.height } }))
-              }
-              renderAnnotationLayer={false}
-              renderTextLayer={false}
-            />
-            {dims[p] && renderOverlay && (
-              <div className="absolute inset-0">{renderOverlay(p, dims[p])}</div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Document>
-  );
-
-  const thumbnails = showThumbnails && numPages > 0 ? (
-    <aside className="w-24 shrink-0 border-r border-border bg-secondary/40 overflow-auto max-h-[calc(100vh-220px)]">
-      <div className="p-2 space-y-2">
-        {Array.from({ length: numPages }, (_, i) => i + 1).map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => { setCurrentPage(p); scrollToPage(p); }}
-            className={`block w-full rounded border-2 overflow-hidden transition ${currentPage === p ? "border-accent" : "border-transparent hover:border-muted-foreground/40"}`}
-            aria-label={`Go to page ${p}`}
-          >
-            <div className="bg-card pointer-events-none">
-              <Page pageNumber={p} width={72} renderAnnotationLayer={false} renderTextLayer={false} />
-            </div>
-            <div className="text-[10px] text-center py-0.5 text-muted-foreground bg-background/60">{p}</div>
-          </button>
-        ))}
-      </div>
-    </aside>
-  ) : null;
-
   const controls = showControls ? (
     <div className="flex items-center justify-center gap-2 py-2 border-b border-border bg-background/60 sticky top-0 z-10">
       <button type="button" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))} className="h-7 w-7 rounded hover:bg-muted inline-flex items-center justify-center" aria-label="Zoom out">
@@ -133,14 +76,67 @@ export function PdfViewer({
   ) : null;
 
   return (
-    <div ref={containerRef} className="w-full flex">
-      {thumbnails}
-      <div className="flex-1 min-w-0">
-        {controls}
-        <div ref={scrollerRef} className={showControls ? "overflow-auto max-h-[calc(100vh-220px)] py-3" : ""}>
-          {docContent}
+    <div ref={containerRef} className="w-full">
+      <Document
+        file={fileUrl}
+        onLoadSuccess={({ numPages }) => {
+          setNumPages(numPages);
+          onLoaded?.(numPages);
+        }}
+        onLoadError={(err) => console.error("PDF load error", err)}
+        loading={<div className="text-sm text-muted-foreground py-6">Loading document…</div>}
+      >
+        <div className="flex">
+          {showThumbnails && numPages > 0 ? (
+            <aside className="w-24 shrink-0 border-r border-border bg-secondary/40 overflow-auto max-h-[calc(100vh-220px)]">
+              <div className="p-2 space-y-2">
+                {Array.from({ length: numPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => { setCurrentPage(p); scrollToPage(p); }}
+                    className={`block w-full rounded border-2 overflow-hidden transition ${currentPage === p ? "border-accent" : "border-transparent hover:border-muted-foreground/40"}`}
+                    aria-label={`Go to page ${p}`}
+                  >
+                    <div className="bg-card pointer-events-none">
+                      <Page pageNumber={p} width={72} renderAnnotationLayer={false} renderTextLayer={false} />
+                    </div>
+                    <div className="text-[10px] text-center py-0.5 text-muted-foreground bg-background/60">{p}</div>
+                  </button>
+                ))}
+              </div>
+            </aside>
+          ) : null}
+          <div className="flex-1 min-w-0">
+            {controls}
+            <div ref={scrollerRef} className={showControls ? "overflow-auto max-h-[calc(100vh-220px)] py-3" : ""}>
+              <div className="space-y-6 flex flex-col items-center">
+                {Array.from({ length: numPages }, (_, i) => i + 1).map((p) => (
+                  <div
+                    key={p}
+                    ref={(el) => { pageRefs.current[p] = el; }}
+                    className="relative inline-block bg-card shadow-elegant rounded-md overflow-hidden border border-border"
+                    style={{ boxShadow: "var(--shadow-elegant)" }}
+                  >
+                    <Page
+                      pageNumber={p}
+                      width={effectiveWidth}
+                      onLoadSuccess={(page) =>
+                        setDims((d) => ({ ...d, [p]: { width: page.width, height: page.height } }))
+                      }
+                      renderAnnotationLayer={false}
+                      renderTextLayer={false}
+                    />
+                    {dims[p] && renderOverlay && (
+                      <div className="absolute inset-0">{renderOverlay(p, dims[p])}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </Document>
     </div>
   );
 }
