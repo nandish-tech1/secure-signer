@@ -195,12 +195,14 @@ export type Database = {
           notified_at: string | null
           order_index: number
           rejection_reason: string | null
+          role: Database["public"]["Enums"]["signer_role"]
           signature_data: string | null
           signature_typed: string | null
           signed_at: string | null
           signed_ip: string | null
           status: Database["public"]["Enums"]["signer_status"]
           token: string
+          expires_at: string | null
         }
         Insert: {
           color?: string | null
@@ -212,12 +214,14 @@ export type Database = {
           notified_at?: string | null
           order_index?: number
           rejection_reason?: string | null
+          role?: Database["public"]["Enums"]["signer_role"]
           signature_data?: string | null
           signature_typed?: string | null
           signed_at?: string | null
           signed_ip?: string | null
           status?: Database["public"]["Enums"]["signer_status"]
           token: string
+          expires_at?: string | null
         }
         Update: {
           color?: string | null
@@ -229,12 +233,14 @@ export type Database = {
           notified_at?: string | null
           order_index?: number
           rejection_reason?: string | null
+          role?: Database["public"]["Enums"]["signer_role"]
           signature_data?: string | null
           signature_typed?: string | null
           signed_at?: string | null
           signed_ip?: string | null
           status?: Database["public"]["Enums"]["signer_status"]
           token?: string
+          expires_at?: string | null
         }
         Relationships: [
           {
@@ -257,6 +263,7 @@ export type Database = {
       document_status: "draft" | "sent" | "completed" | "cancelled"
       signer_status: "pending" | "signed" | "rejected"
       signing_mode: "self" | "parallel" | "ordered"
+      signer_role: "signer" | "validator" | "witness"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -387,6 +394,7 @@ export const Constants = {
       document_status: ["draft", "sent", "completed", "cancelled"],
       signer_status: ["pending", "signed", "rejected"],
       signing_mode: ["self", "parallel", "ordered"],
+      signer_role: ["signer", "validator", "witness"],
     },
   },
 } as const

@@ -5,6 +5,8 @@ import { getSignerByToken, submitSignature, rejectSignature } from "@/lib/public
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PdfViewer } from "@/components/PdfViewer";
 import { SignaturePad } from "@/components/SignaturePad";
@@ -18,6 +20,21 @@ export const Route = createFileRoute("/sign/$token")({
 });
 
 type State = Awaited<ReturnType<typeof getSignerByToken>> | null;
+type FieldType = "signature" | "name" | "date" | "company_stamp" | "initials" | "checkbox" | "text";
+type FieldValue = { fieldId: string; type: FieldType; value: string | { dataUrl: string; typed?: string } };
+
+function getFieldTypeLabel(type: FieldType): string {
+  const labels: Record<FieldType, string> = {
+    signature: "Signature",
+    name: "Name",
+    date: "Date",
+    company_stamp: "Company Stamp",
+    initials: "Initials",
+    checkbox: "Checkbox",
+    text: "Text Field",
+  };
+  return labels[type] || type;
+}
 
 function SignPage() {
   const { token } = Route.useParams();
@@ -29,6 +46,7 @@ function SignPage() {
   const [showPad, setShowPad] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [typed, setTyped] = useState<string | undefined>();
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -100,66 +118,143 @@ function SignPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background sticky top-0 z-30">
-        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-semibold text-foreground">
-            <FileSignature className="h-5 w-5 text-accent" /> SignTrust
+        <div className="mx-auto max-w-6xl px-3 sm:px-6 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 font-semibold text-foreground text-sm sm:text-base">
+            <FileSignature className="h-5 w-5 text-accent" /> <span className="hidden sm:inline">SignTrust</span>
           </div>
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
-            <ShieldCheck className="h-3 w-3" /> Secure signing session
+            <ShieldCheck className="h-3 w-3" /> <span className="hidden sm:inline">Secure signing session</span>
           </span>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      <main className="mx-auto max-w-6xl px-3 sm:px-6 py-4 sm:py-6">
         <div className="mb-4">
-          <h1 className="text-xl font-semibold text-foreground">{state.document.name}</h1>
-          <p className="text-sm text-muted-foreground">Signing as {state.signer.email}</p>
+          <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{state.document.name}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground truncate">Signing as {state.signer.email}</p>
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-          <div className="bg-secondary rounded-lg p-6 overflow-auto">
-            <div className="flex justify-center">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 sm:gap-6">
+          <div className="bg-secondary rounded-lg p-3 sm:p-6 overflow-hidden flex flex-col">
+            <div className="flex justify-center flex-1">
               <PdfViewer
                 fileUrl={state.fileUrl}
                 renderOverlay={(page) => (
                   <div className="absolute inset-0 pointer-events-none">
-                    {state.fields.filter((f) => f.page === page).map((f) => (
-                      <div
-                        key={f.id}
-                        className="absolute rounded border-2 border-accent bg-accent/15 flex items-center justify-center text-xs text-accent font-medium overflow-hidden"
-                        style={{ left: `${f.x_ratio * 100}%`, top: `${f.y_ratio * 100}%`, width: `${f.width_ratio * 100}%`, height: `${f.height_ratio * 100}%` }}
-                      >
-                        {signatureUrl ? (
-                          <img src={signatureUrl} alt="Signature" className="h-full w-full object-contain" />
-                        ) : (
-                          <span>Sign here</span>
-                        )}
-                      </div>
-                    ))}
+                    {state.fields.filter((f) => f.page === page).map((f) => {
+                      const fieldType = (f.field_type as FieldType) || "signature";
+                      const value = fieldValues[f.id];
+                      const isFilled = fieldType === "signature" ? signatureUrl : value;
+                      return (
+                        <div
+                          key={f.id}
+                          className={`absolute rounded border-2 flex items-center justify-center text-[10px] font-medium overflow-hidden ${
+                            isFilled ? "border-green-500 bg-green-500/10" : "border-accent bg-accent/15"
+                          }`}
+                          style={{ left: `${f.x_ratio * 100}%`, top: `${f.y_ratio * 100}%`, width: `${f.width_ratio * 100}%`, height: `${f.height_ratio * 100}%` }}
+                        >
+                          {fieldType === "signature" && signatureUrl ? (
+                            <img src={signatureUrl} alt="Signature" className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-center text-muted-foreground">{getFieldTypeLabel(fieldType)}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               />
             </div>
           </div>
 
-          <aside className="space-y-4">
-            <Card className="p-4">
-              <h3 className="font-semibold text-card-foreground">Your signature</h3>
-              {signatureUrl ? (
-                <>
-                  <img src={signatureUrl} alt="Signature preview" className="mt-3 h-20 object-contain bg-secondary rounded border border-border" />
-                  <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => setShowPad(true)}>Change</Button>
-                </>
-              ) : (
-                <Button className="mt-3 w-full" onClick={() => setShowPad(true)}>Add signature</Button>
-              )}
+          <aside className="space-y-3 sm:space-y-4 max-h-[calc(100vh-200px)] sm:max-h-none overflow-y-auto sm:overflow-visible pr-2 sm:pr-0">
+            {/* Fields to fill */}
+            <Card className="p-3 sm:p-4 space-y-3">
+              <h3 className="font-semibold text-card-foreground text-sm sm:text-base">Fields to complete</h3>
+              <div className="space-y-3 sm:space-y-4">
+                {state.fields.map((f) => {
+                  const fieldType = (f.field_type as FieldType) || "signature";
+                  const value = fieldValues[f.id];
+                  
+                  if (fieldType === "signature") {
+                    return (
+                      <div key={f.id} className="space-y-2">
+                        <Label className="text-xs font-medium">Signature (Page {f.page})</Label>
+                        {signatureUrl ? (
+                          <>
+                            <img src={signatureUrl} alt="Signature preview" className="h-12 sm:h-16 object-contain bg-secondary rounded border border-border" />
+                            <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm" onClick={() => setShowPad(true)}>Change</Button>
+                          </>
+                        ) : (
+                          <Button className="w-full text-xs sm:text-sm" onClick={() => setShowPad(true)}>Add Signature</Button>
+                        )}
+                      </div>
+                    );
+                  } else if (fieldType === "name") {
+                    return (
+                      <div key={f.id} className="space-y-2">
+                        <Label htmlFor={`field-${f.id}`} className="text-xs font-medium">Name (Page {f.page})</Label>
+                        <Input
+                          id={`field-${f.id}`}
+                          placeholder="Enter your full name"
+                          value={value || ""}
+                          onChange={(e) => setFieldValues({ ...fieldValues, [f.id]: e.target.value })}
+                          className="text-xs sm:text-sm"
+                        />
+                      </div>
+                    );
+                  } else if (fieldType === "date") {
+                    return (
+                      <div key={f.id} className="space-y-2">
+                        <Label htmlFor={`field-${f.id}`} className="text-xs font-medium">Date (Page {f.page})</Label>
+                        <Input
+                          id={`field-${f.id}`}
+                          type="date"
+                          value={value || ""}
+                          onChange={(e) => setFieldValues({ ...fieldValues, [f.id]: e.target.value })}
+                          className="text-xs sm:text-sm"
+                        />
+                      </div>
+                    );
+                  } else if (fieldType === "company_stamp") {
+                    return (
+                      <div key={f.id} className="space-y-2">
+                        <Label htmlFor={`field-${f.id}`} className="text-xs font-medium">Company Stamp (Page {f.page})</Label>
+                        <Input
+                          id={`field-${f.id}`}
+                          placeholder="Company name or stamp ID"
+                          value={value || ""}
+                          onChange={(e) => setFieldValues({ ...fieldValues, [f.id]: e.target.value })}
+                          className="text-xs sm:text-sm"
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
             </Card>
 
-            <Card className="p-4 space-y-2">
-              <Button className="w-full" onClick={handleSubmit} disabled={submitting || !signatureUrl}>
+            {/* Signature Section (Legacy) */}
+            {state.fields.some((f) => !f.field_type || (f.field_type as FieldType) === "signature") && (
+              <Card className="p-4">
+                <h3 className="font-semibold text-card-foreground">Your signature</h3>
+                {signatureUrl ? (
+                  <>
+                    <img src={signatureUrl} alt="Signature preview" className="mt-3 h-20 object-contain bg-secondary rounded border border-border" />
+                    <Button variant="outline" size="sm" className="mt-3 w-full text-xs sm:text-sm" onClick={() => setShowPad(true)}>Change</Button>
+                  </>
+                ) : (
+                  <Button className="mt-3 w-full text-xs sm:text-sm" onClick={() => setShowPad(true)}>Add signature</Button>
+                )}
+              </Card>
+            )}
+
+            <Card className="p-3 sm:p-4 space-y-2">
+              <Button className="w-full text-xs sm:text-sm" onClick={handleSubmit} disabled={submitting || !signatureUrl}>
                 Sign document
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => setRejectOpen(true)} disabled={submitting}>
+              <Button variant="outline" className="w-full text-xs sm:text-sm" onClick={() => setRejectOpen(true)} disabled={submitting}>
                 Reject
               </Button>
               <p className="text-xs text-muted-foreground">
